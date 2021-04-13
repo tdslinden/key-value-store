@@ -88,3 +88,18 @@ pub trait Operations {
         K: serde::Serialize + Default + Debug,
         V: serde::de::DeserializeOwned + Default + Debug;
 }
+
+impl Operations for KVStore {
+    fn new(path: &str) -> std::io::Result<Self> {
+        if path.to_string().len() < 3 {
+            return Err(error);
+        }
+
+        let new_kvstore = KVStore {
+            size: 0,
+            path: path.to_string(),
+        };
+
+        Ok(new_kvstore)
+    }
+}
