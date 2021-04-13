@@ -1,5 +1,8 @@
 use std::fmt::Debug;
-
+use std::error::Error;
+use serde::{Serialize, Deserialize};
+use std::path::Path;
+use std::fs;
 #[derive(Debug)]
 /// A struct that represents a key-value store.
 pub struct KVStore {
@@ -91,15 +94,40 @@ pub trait Operations {
 
 impl Operations for KVStore {
     fn new(path: &str) -> std::io::Result<Self> {
-        if path.to_string().len() < 3 {
-            return Err(error);
+        let check_dir = Path::new(path).read_dir()?; //returns std::err if cannot create
+        
+        let is_empty = check_dir.next().is_none();
+        match is_empty {
+            True => {                                   //no existing key-value mappings
+                let new_kvstore = KVStore {
+                    size: 0,
+                    path: path.to_string(),
+                };
+                Ok(new_kvstore)
+            },
+            False => {  //TODO HOW WE GRAB THE EXISTING KVS???/
+                let check_existing_kvs = KVStore::new(path.to_string());
+                //possible idea: count all the .keys to find out how many KV pairs there are 
+                //in the existing KV instance. 
+            }
         }
-
-        let new_kvstore = KVStore {
-            size: 0,
-            path: path.to_string(),
-        };
-
-        Ok(new_kvstore)
+        
     }
+
+    fn size(self: &Self) -> usize {
+        self.size
+    }
+
+    fn insert<K, V>(self: &mut Self, key: K, value: V) -> std::io::Result<()> {
+        //serde a key, create a SHA from that, store in directory
+
+    }
+
+    // fn lookup<K, V>(self: &Self, key: K) -> std::io::Result<V> {
+    //     Ok()
+    // }
+
+    // fn remove<K, V>(self: &mut Self, key: K) -> std::io::Result<V> {
+    //     Ok()
+    // }
 }
