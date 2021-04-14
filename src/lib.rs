@@ -3,6 +3,7 @@ use std::error::Error;
 use serde::{Serialize, Deserialize};
 use std::path::Path;
 use std::fs;
+use sha256::digest;
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -98,6 +99,15 @@ impl Operations for KVStore {
         //serde a key, create a SHA for the key and the value, use filewriter to store in given path directory
         
         let serialize_key = serde_json::to_string(&key).unwrap();
+        let serialize_value = serde_json::to_string(&value).unwrap();
+        
+        let hashed_key = digest(serialize_key);
+        let hashed_value = digest(serialize_value);
+
+        println!("hashed_key: {}, hashed_value: {}", hashed_key, hashed_value);
+
+        
+
         Ok(())
     }
 
