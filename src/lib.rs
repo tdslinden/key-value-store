@@ -4,8 +4,8 @@ use serde::{Serialize, Deserialize};
 use std::path::Path;
 use std::fs;
 use sha256::digest;
-
-
+use std::ffi::OsStr;
+use std::fs::metadata;
 #[derive(Serialize, Deserialize, Debug)]
 /// A struct that represents a key-value store.
 pub struct KVStore {
@@ -60,28 +60,50 @@ pub trait Operations {
 
 impl Operations for KVStore {
     fn new(path: &str) -> std::io::Result<Self> {
-        let check_dir = Path::new(path).read_dir()?; //returns std::err if cannot create
-        
+        //let check_dir = Path::new(path).read_dir()?;    //checks dir existence.
+        fs::create_dir_all(&path)?;                 //creates dir at path. if error, returns std error.
+        //TODO: should we exclude target from possible directories creation?
         let is_empty = Path::new(path).read_dir()?.next().is_none();
+        println!("{}",is_empty);
         match is_empty {
-            True => {                                   //no existing key-value mappings
+            true => {                                   //no existing key-value mappings
                 let new_kvstore = KVStore {
                     size: 0,
                     path: path.to_string(),
                 };
                 Ok(new_kvstore)
             },
-            False => {  //TODO HOW WE GRAB THE EXISTING KVS???/
-                let check_existing_kvs = KVStore::new(&path.to_string());
-                //possible idea: count all the .keys to find out how many KV pairs there are 
-                //in the existing KV instance. 
-                //TEMP
-                let new_kvstore = KVStore {
-                    size: 0,
+            false => {  
+                let mut counter = 0;
+                for entry in fs::read_dir(path)? {      //grabs all entries in the directory and searches for ".key"
+                    let entry = entry?;                 //counting all the KV pairs in the directory
+                    //let filename = entry.file_name().into_string();   //to initialize a KVStore instance with an existing number of pairs
+                    let pathname = entry.path();            //https://doc.rust-lang.org/std/fs/struct.DirEntry.html#method.path
+                    let filename = pathname.to_str().unwrap();
+                    let file_metadata = metadata(filename).unwrap();    //https://stackoverflow.com/questions/30309100/how-to-check-if-a-given-path-is-a-file-or-directory
+                    if file_metadata.is_dir() {     //beginning of sub directory check for keyvalue pairs
+
+                        for entry in fs::read_dir(filename)? {      
+                            let entry = entry?;                 
+                            let pathname = entry.path();            
+                            let filename2 = pathname.to_str().unwrap();
+                            if filename2.contains(&String::from(".key")) {
+                                counter = counter + 1;       
+                            }
+                        }
+                    }
+                    //println!("{}",filename);
+
+                    if filename.contains(&String::from(".key")) {
+                        counter = counter + 1;          //sets counter for existing keyvalue pairs
+                    }
+                }
+                //println!("{} is the counter",counter);
+                let new_kvstore = KVStore {             //create instance of KVStore to account for existing and new key value pairs
+                    size: counter,
                     path: path.to_string(),
                 };
                 Ok(new_kvstore)
-                //TEMP
             }
         }
         
