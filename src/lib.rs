@@ -61,7 +61,7 @@ impl Operations for KVStore {
     fn new(path: &str) -> std::io::Result<Self> {
         let check_dir = Path::new(path).read_dir()?; //returns std::err if cannot create
         
-        let is_empty = check_dir.next().is_none();
+        let is_empty = Path::new(path).read_dir()?.next().is_none();
         match is_empty {
             True => {                                   //no existing key-value mappings
                 let new_kvstore = KVStore {
@@ -71,9 +71,16 @@ impl Operations for KVStore {
                 Ok(new_kvstore)
             },
             False => {  //TODO HOW WE GRAB THE EXISTING KVS???/
-                let check_existing_kvs = KVStore::new(path.to_string());
+                let check_existing_kvs = KVStore::new(&path.to_string());
                 //possible idea: count all the .keys to find out how many KV pairs there are 
                 //in the existing KV instance. 
+                //TEMP
+                let new_kvstore = KVStore {
+                    size: 0,
+                    path: path.to_string(),
+                };
+                Ok(new_kvstore)
+                //TEMP
             }
         }
         
@@ -83,10 +90,14 @@ impl Operations for KVStore {
         self.size
     }
 
-    fn insert<K, V>(self: &mut Self, key: K, value: V) -> std::io::Result<()> {
+    fn insert<K, V>(self: &mut Self, key: K, value: V) -> std::io::Result<()>
+    where
+        K: serde::Serialize + Default + Debug,
+        V: serde::Serialize + Default + Debug,
+        {
         //serde a key, create a SHA for the key and the value, use filewriter to store in given path directory
         
-        let serialize_key = serde_json::to_string(key).unwrap();
+        let serialize_key = serde_json::to_string(&key).unwrap();
         Ok(())
     }
 
