@@ -117,18 +117,51 @@ impl Operations for KVStore {
     where
         K: serde::Serialize + Default + Debug,
         V: serde::Serialize + Default + Debug,
-        {
+    {
         //serde a key, create a SHA for the key and the value, use filewriter to store in given path directory
         
         let serialize_key = serde_json::to_string(&key).unwrap();
         let serialize_value = serde_json::to_string(&value).unwrap();
         
-        let hashed_key = digest(serialize_key);
-        let hashed_value = digest(serialize_value);
+        let hashed_key = digest(&serialize_key);
+        let hashed_value = digest(&serialize_value);
 
         println!("hashed_key: {}, hashed_value: {}", hashed_key, hashed_value);
-
         
+        let key_path = format!("{}{}{}", self.path, &hashed_key, &String::from(".key"));
+        
+        for entry in fs::read_dir(&self.path)? {      
+            let entry = entry?;                 
+            let pathname = entry.path();            
+            let filename = pathname.to_str().unwrap();
+            let file_metadata = metadata(filename).unwrap();    
+            if file_metadata.is_dir() {     
+
+                for entry in fs::read_dir(filename)? {      
+                    let entry = entry?;                 
+                    let pathname = entry.path();            
+                    let sub_dir_filename = pathname.to_str().unwrap();
+                    
+                    if let sub_dir_filename = &*key_path {
+                        println!("it worked!");
+                    }
+                }
+            }
+
+            if let filename = &*key_path {
+                println!("it worked!");
+            }
+        }
+
+        // Need to handle case where self.path is "." and if self.path does not contain "/"
+
+        // let key_path = format!("{}{}{}", self.path, &hashed_key, &String::from(".key"));
+        // fs::write(&key_path, serialize_key).expect("Unable to write file");
+
+        // let value_path = format!("{}{}{}", self.path, &hashed_value, &String::from(".value"));
+        // fs::write(&value_path, serialize_value).expect("Unable to write file");
+
+        // println!("value_path: {}, key_path: {}", value_path, key_path);
 
         Ok(())
     }
