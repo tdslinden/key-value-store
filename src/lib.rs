@@ -100,13 +100,9 @@ impl Operations for KVStore {
                             }
                         }
                     }
-                    //println!("{}",filename);
-
-                    if filename.contains(&String::from(".key")) {
-                        counter = counter + 1;          //sets counter for existing keyvalue pairs
-                    }
+                    println!("{}",filename);
                 }
-                //println!("{} is the counter",counter);
+                println!("{} is the counter",counter);
                 let new_kvstore = KVStore {             //create instance of KVStore to account for existing and new key value pairs
                     size: counter,
                     path: sanitized_path,
