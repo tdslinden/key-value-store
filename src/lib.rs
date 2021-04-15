@@ -155,7 +155,7 @@ impl Operations for KVStore {
                         let file_path = path_name.to_str().unwrap();
                         
                         if file_path.contains(&hashed_key) {
-                            let custom_error = Error::new(ErrorKind::AlreadyExists, "oh no!");
+                            let custom_error = Error::new(ErrorKind::AlreadyExists, "If there is a key-value mapping stored already with the same key.");
                             return Err(custom_error);
                         } 
                     }
