@@ -1,11 +1,13 @@
 use std::fmt::Debug;
-use std::error::Error;
 use serde::{Serialize, Deserialize};
 use std::path::Path;
 use std::fs;
 use sha256::digest;
 use std::ffi::OsStr;
 use std::fs::metadata;
+use std::io::{Error, ErrorKind};
+
+
 #[derive(Serialize, Deserialize, Debug)]
 /// A struct that represents a key-value store.
 pub struct KVStore {
@@ -56,6 +58,15 @@ pub trait Operations {
     where
         K: serde::Serialize + Default + Debug,
         V: serde::Serialize + Default + Debug;
+}
+
+fn create_file_path<'a>(path: &String, hashed_value: &'a str, extension: &'a str) -> String {
+    let mut file_path = match path.as_str() {
+        "." => format!("{}{}", &hashed_value, extension),
+        _ => format!("{}{}{}", path, &hashed_value, extension),
+    };
+
+    file_path
 }
 
 impl Operations for KVStore {
@@ -128,45 +139,39 @@ impl Operations for KVStore {
         let serialize_value = serde_json::to_string(&value).unwrap();
         
         let hashed_key = digest(&serialize_key);
-        let hashed_value = digest(&serialize_value);
 
-        println!("hashed_key: {}, hashed_value: {}", hashed_key, hashed_value);
-        
-        let key_path = format!("{}{}{}", self.path, &hashed_key, &String::from(".key"));
-        
-        for entry in fs::read_dir(&self.path)? {      
-            let entry = entry?;                 
-            let pathname = entry.path();            
-            let filename = pathname.to_str().unwrap();
-            let file_metadata = metadata(filename).unwrap();    
-            if file_metadata.is_dir() {     
+        // println!("hashed_key: {}", hashed_key);
 
-                for entry in fs::read_dir(filename)? {      
-                    let entry = entry?;                 
-                    let pathname = entry.path();            
-                    let sub_dir_filename = pathname.to_str().unwrap();
-                    
-                    if let sub_dir_filename = &*key_path {
-                        println!("it worked!");
+        let key_file_path = create_file_path(&self.path, &hashed_key, ".key");
+        let value_file_path = create_file_path(&self.path, &hashed_key, ".value");
+
+        // check if a directory with first 10 characters from SHA exists
+
+        for subdirectory in fs::read_dir(&self.path)? {      
+            let subdirectory = subdirectory?;                 
+            let path_name = subdirectory.path();            
+            let subdirectory_path = path_name.to_str().unwrap();
+            let file_metadata = metadata(subdirectory_path).unwrap();
+                if file_metadata.is_dir() {
+                    for entry in fs::read_dir(subdirectory_path)? {      
+                        let entry = entry?;                 
+                        let path_name = entry.path();            
+                        let file_path = path_name.to_str().unwrap();
+                        
+                        if file_path.contains(&hashed_key) {
+                            let custom_error = Error::new(ErrorKind::AlreadyExists, "oh no!");
+                            return Err(custom_error);
+                        } 
                     }
                 }
-            }
-
-            if let filename = &*key_path {
-                println!("it worked!");
-            }
         }
+        
+        // if here, then create sub dir with first 10 chars and write    
 
-        // Need to handle case where self.path is "." and if self.path does not contain "/"
-
-        // let key_path = format!("{}{}{}", self.path, &hashed_key, &String::from(".key"));
+        // let key_file_path = create_file_path(&file_path, &hashed_key, ".key");
+        // let value_file_path = create_file_path(&file_path, &hashed_key, ".value");
         // fs::write(&key_path, serialize_key).expect("Unable to write file");
-
-        // let value_path = format!("{}{}{}", self.path, &hashed_value, &String::from(".value"));
-        // fs::write(&value_path, serialize_value).expect("Unable to write file");
-
-        // println!("value_path: {}, key_path: {}", value_path, key_path);
-
+        // fs::write(&value_path, serialize_value).expect("Unable to write file");  
         Ok(())
     }
 
