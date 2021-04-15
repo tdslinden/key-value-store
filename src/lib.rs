@@ -189,8 +189,6 @@ impl Operations for KVStore {
                 }
             }
         }
-        // if here, then create sub dir with first 10 chars and then write or write to existing 
-
         if !directory_exists {
             fs::create_dir(&desired_subdirectory_path)?;
         }
