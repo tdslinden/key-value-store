@@ -61,8 +61,8 @@ pub trait Operations {
 
 fn create_file_path<'a>(path: &String, hashed_value: &'a str, extension: &'a str) -> String {
     let file_path = match path.as_str() {
-        "." => format!("{}{}", &hashed_value, extension),
-        _ => format!("{}{}{}", path, &hashed_value, extension),
+        "." => format!("{}{}{}", "/", &hashed_value, extension),
+        _ => format!("{}{}{}{}", path, "/", &hashed_value, extension),
     };
 
     file_path
@@ -143,7 +143,10 @@ impl Operations for KVStore {
         
         let hashed_key = digest(&serialize_key);
         let key_file_name = create_file_name(&hashed_key, ".key");
+        let first_ten_key = &hashed_key[0..10];
+        let desired_subdirectory_path = create_file_name(&self.path, &first_ten_key);
 
+        let mut is_inserted = false;
         // check if a directory with first 10 characters from SHA exists
         for subdirectory in fs::read_dir(&self.path)? {      
             let subdirectory = subdirectory?;                 
@@ -152,11 +155,8 @@ impl Operations for KVStore {
             
             let subdirectory_name = path_name.file_name().unwrap().to_str().unwrap();
             let subdir_ten_key = &subdirectory_name[0..10];
-            let first_ten_key = &hashed_key[0..10];
             let file_metadata = metadata(subdirectory_path).unwrap(); 
-            
-            println!("{}", hashed_key);
-            
+                        
             if first_ten_key.eq(subdir_ten_key) {
                 if file_metadata.is_dir() {
                     for entry in fs::read_dir(subdirectory_path)? {      
@@ -170,20 +170,23 @@ impl Operations for KVStore {
                         } 
                     }
                 }
+                
+                let key_file_path = create_file_path(&desired_subdirectory_path, &hashed_key, ".key");
+                let value_file_path = create_file_path(&desired_subdirectory_path, &hashed_key, ".value");
+                fs::write(&key_file_path, &serialize_key).expect("Unable to write file");
+                fs::write(&value_file_path, &serialize_value).expect("Unable to write file");
+                is_inserted = true;
             }
         }
-        
-        // if here, then create sub dir with first 10 chars and write  
+        // if here, then create sub dir with first 10 chars and then write or write to existing 
 
-        // let key_file_path = create_file_path(&file_path, &hashed_key, ".key");
-        // let value_file_path = create_file_path(&file_path, &hashed_key, ".value");
-
-        // let key_file_path = create_file_path(&self.path, &hashed_key, ".key");
-        // let value_file_path = create_file_path(&self.path, &hashed_key, ".value");
-
-        // fs::create_dir("/some/dir")?;
-        // fs::write(&key_path, serialize_key).expect("Unable to write file");
-        // fs::write(&value_path, serialize_value).expect("Unable to write file");  
+        if !is_inserted {
+            fs::create_dir(&desired_subdirectory_path)?;
+            let key_file_path = create_file_path(&desired_subdirectory_path, &hashed_key, ".key");
+            let value_file_path = create_file_path(&desired_subdirectory_path, &hashed_key, ".value");
+            fs::write(&key_file_path, serialize_key).expect("Unable to write file");
+            fs::write(&value_file_path, serialize_value).expect("Unable to write file");  
+        }
         Ok(())
     }
 
