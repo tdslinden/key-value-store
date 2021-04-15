@@ -84,8 +84,8 @@ fn create_file_path<'a>(path: &String, hashed_value: &'a str, extension: &'a str
     file_path
 }
 
-fn create_file_name<'a>(hashed_value: &'a str, extension: &'a str) -> String {
-    format!("{}{}", &hashed_value, extension)
+fn combine_string<'a>(first: &'a str, second: &'a str) -> String {
+    format!("{}{}", first, second)
 }
 
 impl Operations for KVStore {
@@ -151,58 +151,52 @@ impl Operations for KVStore {
     where
         K: serde::Serialize + Default + Debug,
         V: serde::Serialize + Default + Debug,
-    {
-        //serde a key, create a SHA for the key and the value, use filewriter to store in given path directory
-        
+    {        
         let serialize_key = serde_json::to_string(&key).unwrap();
         let serialize_value = serde_json::to_string(&value).unwrap();
         
         let hashed_key = digest(&serialize_key);
-        let key_file_name = create_file_name(&hashed_key, ".key");
+        let key_file_name = combine_string(&hashed_key, ".key");
         let first_ten_key = &hashed_key[0..10];
-        let desired_subdirectory_path = create_file_name(&self.path, &first_ten_key);
+        let desired_subdirectory_path = combine_string(&self.path, &first_ten_key);
 
-        let mut is_inserted = false;
-        // check if a directory with first 10 characters from SHA exists
-        for subdirectory in fs::read_dir(&self.path)? {      
-            let subdirectory = subdirectory?;                 
-            let path_name = subdirectory.path();            
+        let mut directory_exists = false;
+        for subdirectory_entry in fs::read_dir(&self.path)? {      
+            let subdirectory_entry = subdirectory_entry?;                 
+            let path_name = subdirectory_entry.path();
             let subdirectory_path = path_name.to_str().unwrap();
-            
             let subdirectory_name = path_name.file_name().unwrap().to_str().unwrap();
-            let subdir_ten_key = &subdirectory_name[0..10];
-            let file_metadata = metadata(subdirectory_path).unwrap(); 
-                        
-            if first_ten_key.eq(subdir_ten_key) {
-                if file_metadata.is_dir() {
-                    for entry in fs::read_dir(subdirectory_path)? {      
-                        let entry = entry?;                 
-                        let path_name = entry.path();            
-                        let file_name = path_name.file_name().unwrap().to_str().unwrap();
-                        
-                        if file_name.eq(&key_file_name) {
-                            let custom_error = Error::new(ErrorKind::AlreadyExists, "There is a key-value mapping stored already with the same key.");
-                            return Err(custom_error);
-                        } 
+            
+            if subdirectory_name.len() == 10 {
+                let subdir_ten_key = &subdirectory_name[0..10];
+                let file_metadata = metadata(subdirectory_path).unwrap(); 
+                            
+                if first_ten_key.eq(subdir_ten_key) {
+                    if file_metadata.is_dir() {
+                        for entry in fs::read_dir(subdirectory_path)? {      
+                            let entry = entry?;                 
+                            let path_name = entry.path();            
+                            let file_name = path_name.file_name().unwrap().to_str().unwrap();
+                            
+                            if file_name.eq(&key_file_name) {
+                                let custom_error = Error::new(ErrorKind::AlreadyExists, "There is a key-value mapping stored already with the same key.");
+                                return Err(custom_error);
+                            } 
+                        }
                     }
+                    directory_exists = true;
+                    break;
                 }
-                
-                let key_file_path = create_file_path(&desired_subdirectory_path, &hashed_key, ".key");
-                let value_file_path = create_file_path(&desired_subdirectory_path, &hashed_key, ".value");
-                fs::write(&key_file_path, &serialize_key).expect("Unable to write file");
-                fs::write(&value_file_path, &serialize_value).expect("Unable to write file");
-                is_inserted = true;
             }
         }
-        // if here, then create sub dir with first 10 chars and then write or write to existing 
-
-        if !is_inserted {
+        if !directory_exists {
             fs::create_dir(&desired_subdirectory_path)?;
-            let key_file_path = create_file_path(&desired_subdirectory_path, &hashed_key, ".key");
-            let value_file_path = create_file_path(&desired_subdirectory_path, &hashed_key, ".value");
-            fs::write(&key_file_path, serialize_key).expect("Unable to write file");
-            fs::write(&value_file_path, serialize_value).expect("Unable to write file");  
         }
+        let key_file_path = create_file_path(&desired_subdirectory_path, &hashed_key, ".key");
+        let value_file_path = create_file_path(&desired_subdirectory_path, &hashed_key, ".value");
+        fs::write(&key_file_path, serialize_key).expect("Unable to write file");
+        fs::write(&value_file_path, serialize_value).expect("Unable to write file");  
+
         Ok(())
     }
 
@@ -216,8 +210,8 @@ impl Operations for KVStore {
         //if for loop ends in root level, that means lookup failed, return std error
         let serialize_key = serde_json::to_string(&key).unwrap();
         let hashed_key = digest(&serialize_key);
-        let key_file_name = create_file_name(&hashed_key, ".key");
-        let value_file_name = create_file_name(&hashed_key, ".value");
+        let key_file_name = combine_string(&hashed_key, ".key");
+        let value_file_name = combine_string(&hashed_key, ".value");
         for subdirectory in fs::read_dir(&self.path)? {
             let subdirectory = subdirectory?;
             let path_name = subdirectory.path();
