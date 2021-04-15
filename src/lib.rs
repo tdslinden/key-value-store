@@ -75,12 +75,20 @@ impl Operations for KVStore {
         fs::create_dir_all(&path)?;                 //creates dir at path. if error, returns std error.
         //TODO: should we exclude target from possible directories creation?
         let is_empty = Path::new(path).read_dir()?.next().is_none();
-        println!("{}",is_empty);
+        //println!("{}",is_empty);
+        
+        let mut sanitized_path = String::from(path);    //will we need to add a / to the end of the path? 
+        let length = sanitized_path.len();
+        let last_char = &sanitized_path[length-1..];    //https://stackoverflow.com/questions/48642342/how-to-get-the-last-character-of-a-str
+        //println!("{}",last_char);
+        if !last_char.contains(&String::from("/")){     //if it does not contain a /, it will need to be added to the sanitized path
+            sanitized_path = sanitized_path + "/";
+        }
         match is_empty {
             true => {                                   //no existing key-value mappings
                 let new_kvstore = KVStore {
                     size: 0,
-                    path: path.to_string(),
+                    path: sanitized_path,
                 };
                 Ok(new_kvstore)
             },
@@ -103,16 +111,12 @@ impl Operations for KVStore {
                             }
                         }
                     }
-                    //println!("{}",filename);
-
-                    if filename.contains(&String::from(".key")) {
-                        counter = counter + 1;          //sets counter for existing keyvalue pairs
-                    }
+                    println!("{}",filename);
                 }
-                //println!("{} is the counter",counter);
+                println!("{} is the counter",counter);
                 let new_kvstore = KVStore {             //create instance of KVStore to account for existing and new key value pairs
                     size: counter,
-                    path: path.to_string(),
+                    path: sanitized_path,
                 };
                 Ok(new_kvstore)
             }
