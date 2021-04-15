@@ -1,11 +1,13 @@
 use std::fmt::Debug;
-use std::error::Error;
 use serde::{Serialize, Deserialize};
 use std::path::Path;
 use std::fs;
 use sha256::digest;
 use std::ffi::OsStr;
 use std::fs::metadata;
+use std::io::{Error, ErrorKind};
+
+
 #[derive(Serialize, Deserialize, Debug)]
 /// A struct that represents a key-value store.
 pub struct KVStore {
@@ -58,7 +60,7 @@ pub trait Operations {
         V: serde::Serialize + Default + Debug;
 }
 
-fn create_file_path<'a>(extension: &'a str, path: &String, hashed_value: &'a str) -> String {
+fn create_file_path<'a>(path: &String, hashed_value: &'a str, extension: &'a str) -> String {
     let mut file_path = match path.as_str() {
         "." => format!("{}{}", &hashed_value, extension),
         _ => format!("{}{}{}", path, &hashed_value, extension),
@@ -136,39 +138,36 @@ impl Operations for KVStore {
 
         // println!("hashed_key: {}", hashed_key);
 
-        let key_file_path = create_file_path(".key", &self.path, &hashed_key);
-        let value_file_path = create_file_path(".value", &self.path, &hashed_key);
+        let key_file_path = create_file_path(&self.path, &hashed_key, ".key");
+        let value_file_path = create_file_path(&self.path, &hashed_key, ".value");
 
-        // for entry in fs::read_dir(&self.path)? {      
-        //     let entry = entry?;                 
-        //     let pathname = entry.path();            
-        //     let filename = pathname.to_str().unwrap();
-        //     let file_metadata = metadata(filename).unwrap();    
-        //     if file_metadata.is_dir() {     
+        // check if a directory with first 10 characters from SHA exists
 
-        //         for entry in fs::read_dir(filename)? {      
-        //             let entry = entry?;                 
-        //             let pathname = entry.path();            
-        //             let sub_dir_filename = pathname.to_str().unwrap();
-                    
-        //             if let sub_dir_filename = &*key_path {
-        //                 println!("it worked!");
-        //             }
-        //         }
-        //     }
+        for subdirectory in fs::read_dir(&self.path)? {      
+            let subdirectory = subdirectory?;                 
+            let path_name = subdirectory.path();            
+            let subdirectory_path = path_name.to_str().unwrap();
+            let file_metadata = metadata(subdirectory_path).unwrap();
+                if file_metadata.is_dir() {
+                    for entry in fs::read_dir(subdirectory_path)? {      
+                        let entry = entry?;                 
+                        let path_name = entry.path();            
+                        let file_path = path_name.to_str().unwrap();
+                        
+                        if file_path.contains(&hashed_key) {
+                            let custom_error = Error::new(ErrorKind::AlreadyExists, "oh no!");
+                            return Err(custom_error);
+                        } 
+                    }
+                }
+        }
+        
+        // if here, then create sub dir with first 10 chars and write    
 
-        //     if let filename = &*key_path {
-        //         println!("it worked!");
-        //     }
-        // }
-
-        // if hashed key doesn't share first 10 digits then can stay in root
-        // if does share, then must create a sub directory
-        //   - if there is a key in the root that shares first 10 digits
-        //   - must create a sub dir and take that key and the new key in to the new sub dir 
-
+        // let key_file_path = create_file_path(&file_path, &hashed_key, ".key");
+        // let value_file_path = create_file_path(&file_path, &hashed_key, ".value");
         // fs::write(&key_path, serialize_key).expect("Unable to write file");
-        // fs::write(&value_path, serialize_value).expect("Unable to write file");
+        // fs::write(&value_path, serialize_value).expect("Unable to write file");  
         Ok(())
     }
 
