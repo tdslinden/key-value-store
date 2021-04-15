@@ -58,6 +58,15 @@ pub trait Operations {
         V: serde::Serialize + Default + Debug;
 }
 
+fn create_file_path<'a>(extension: &'a str, path: &String, hashed_value: &'a str) -> String {
+    let mut file_path = match path.as_str() {
+        "." => format!("{}{}", &hashed_value, extension),
+        _ => format!("{}{}{}", path, &hashed_value, extension),
+    };
+
+    file_path
+}
+
 impl Operations for KVStore {
     fn new(path: &str) -> std::io::Result<Self> {
         //let check_dir = Path::new(path).read_dir()?;    //checks dir existence.
@@ -124,45 +133,42 @@ impl Operations for KVStore {
         let serialize_value = serde_json::to_string(&value).unwrap();
         
         let hashed_key = digest(&serialize_key);
-        let hashed_value = digest(&serialize_value);
 
-        println!("hashed_key: {}, hashed_value: {}", hashed_key, hashed_value);
-        
-        let key_path = format!("{}{}{}", self.path, &hashed_key, &String::from(".key"));
-        
-        for entry in fs::read_dir(&self.path)? {      
-            let entry = entry?;                 
-            let pathname = entry.path();            
-            let filename = pathname.to_str().unwrap();
-            let file_metadata = metadata(filename).unwrap();    
-            if file_metadata.is_dir() {     
+        // println!("hashed_key: {}", hashed_key);
 
-                for entry in fs::read_dir(filename)? {      
-                    let entry = entry?;                 
-                    let pathname = entry.path();            
-                    let sub_dir_filename = pathname.to_str().unwrap();
+        let key_file_path = create_file_path(".key", &self.path, &hashed_key);
+        let value_file_path = create_file_path(".value", &self.path, &hashed_key);
+
+        // for entry in fs::read_dir(&self.path)? {      
+        //     let entry = entry?;                 
+        //     let pathname = entry.path();            
+        //     let filename = pathname.to_str().unwrap();
+        //     let file_metadata = metadata(filename).unwrap();    
+        //     if file_metadata.is_dir() {     
+
+        //         for entry in fs::read_dir(filename)? {      
+        //             let entry = entry?;                 
+        //             let pathname = entry.path();            
+        //             let sub_dir_filename = pathname.to_str().unwrap();
                     
-                    if let sub_dir_filename = &*key_path {
-                        println!("it worked!");
-                    }
-                }
-            }
+        //             if let sub_dir_filename = &*key_path {
+        //                 println!("it worked!");
+        //             }
+        //         }
+        //     }
 
-            if let filename = &*key_path {
-                println!("it worked!");
-            }
-        }
+        //     if let filename = &*key_path {
+        //         println!("it worked!");
+        //     }
+        // }
 
-        // Need to handle case where self.path is "." and if self.path does not contain "/"
+        // if hashed key doesn't share first 10 digits then can stay in root
+        // if does share, then must create a sub directory
+        //   - if there is a key in the root that shares first 10 digits
+        //   - must create a sub dir and take that key and the new key in to the new sub dir 
 
-        // let key_path = format!("{}{}{}", self.path, &hashed_key, &String::from(".key"));
         // fs::write(&key_path, serialize_key).expect("Unable to write file");
-
-        // let value_path = format!("{}{}{}", self.path, &hashed_value, &String::from(".value"));
         // fs::write(&value_path, serialize_value).expect("Unable to write file");
-
-        // println!("value_path: {}, key_path: {}", value_path, key_path);
-
         Ok(())
     }
 
