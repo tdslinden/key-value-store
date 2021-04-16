@@ -290,6 +290,7 @@ impl Operations for KVStore {
             let subdir_ten_key = &subdirectory_name[0..10];                 //extract first 10 digits of hashed key to compare with subdir names
             let first_ten_key = &hashed_key[0..10];
             let file_metadata = metadata(subdirectory_path).unwrap();
+            let mut removed_key = false;
 
             if first_ten_key.eq(subdir_ten_key) {
                 if file_metadata.is_dir() {
@@ -307,6 +308,7 @@ impl Operations for KVStore {
                     if Path::new(subdirectory_path).read_dir()?.next().is_none().eq(&true){    //empty directory
                         println!("empty directory, deleting {}",subdirectory_path);
                         fs::remove_dir_all(subdirectory_path)?;
+
                     }
                     return Ok(deserialize_value);
                     
