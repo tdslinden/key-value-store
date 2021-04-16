@@ -292,6 +292,7 @@ impl Operations for KVStore {
             let subdir_ten_key = &subdirectory_name[0..10];                 //extract first 10 digits of hashed key to compare with subdir names
             let first_ten_key = &hashed_key[0..10];
             let file_metadata = metadata(subdirectory_path).unwrap();
+            let mut removed_key = false;
 
             if first_ten_key.eq(subdir_ten_key) {
                 if file_metadata.is_dir() {
@@ -299,20 +300,15 @@ impl Operations for KVStore {
                         let entry = entry?;                 
                         let path_name = entry.path();            
                         let file_name = path_name.file_name().unwrap().to_str().unwrap();
+
+                        if file_name.eq(&key_file_name) {              //remove key            
+                            let entire_file_path = format!("{}{}{}{}", subdirectory_path, "/", &hashed_key, ".key");    
+                            println!("removing key {}",entire_file_path);
+                            fs::remove_file(entire_file_path)?;
+                            removed_key = true;             
+                        }
             
                         if file_name.eq(&value_file_name){                //grabs deserialized value and removes .value                
-                
-                            for entry1 in fs::read_dir(subdirectory_path)? {    //implied that key must exist bc we found value, so find it
-                                let entry1 = entry1?;
-                                let path_name1 = entry1.path();            
-                                let file_name1 = path_name1.file_name().unwrap().to_str().unwrap();
-                                if file_name1.eq(&key_file_name) {              //remove key            
-                                    let entire_file_path = format!("{}{}{}{}", subdirectory_path, "/" ,&hashed_key, ".key");    
-                                    println!("removing key {}",entire_file_path);
-                                    fs::remove_file(entire_file_path)?;             
-                                }
-                            }
-
                             let entire_file_path = format!("{}{}{}{}", subdirectory_path, "/" ,&hashed_key, ".value");  //concantenate file's path
                             let entire_file_path_remove = String::from(&entire_file_path);
                             let contents = fs::read_to_string(entire_file_path)?;      //reads contents and returns Result<string>, so unwrap;
@@ -325,7 +321,9 @@ impl Operations for KVStore {
                                 println!("empty directory, deleting {}",subdirectory_path);
                                 fs::remove_dir_all(subdirectory_path)?;
                             }
-                            return Ok(deserialize_value);
+                            if removed_key {
+                                return Ok(deserialize_value);
+                            }
                         }
                     }
                     //key did not exist in subdirectory and it can't exist anywhere else
