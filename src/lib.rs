@@ -190,7 +190,7 @@ impl Operations for KVStore {
         let value_file_path = create_file_path(&desired_subdirectory_path, &hashed_key, ".value");
         fs::write(&key_file_path, serialize_key).expect("Unable to write file");
         fs::write(&value_file_path, serialize_value).expect("Unable to write file");  
-
+        self.size += 1;
         Ok(())
     }
 
@@ -248,7 +248,7 @@ impl Operations for KVStore {
                     println!("empty directory, deleting {}",sub_dir);
                     fs::remove_dir_all(sub_dir)?;
                 }
-
+                self.size -= 1;
                 return Ok(deserialize_value);
             } else {
                 return Err(Error::new(ErrorKind::NotFound, "No key-value mapping exists with this key."));
@@ -264,16 +264,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hello_world_test() {
-        assert_eq!(4, 4);
-    }
-
-    #[test]
     fn test_new_no_dir() {
-        let kvs = KVStore::new(".").unwrap();
+        let path = "0";
+        rm_rf::ensure_removed(path).unwrap();
+
+        let kvs = KVStore::new(path).unwrap();
 
         assert_eq!(kvs.size, 0);
-        assert_eq!(kvs.path, "./");
+        assert_eq!(kvs.path, "0/");
     }
 
     #[test]
@@ -284,90 +282,189 @@ mod tests {
 
     #[test]
     fn test_new_no_existing_dir_and_kvs() {
-        let path = "temp";
+        let path = "1";
+        rm_rf::ensure_removed(path).unwrap();
+
         fs::create_dir_all(&path).unwrap();
 
         let kvs = KVStore::new(path).unwrap();
 
         assert_eq!(kvs.size, 0);
-        assert_eq!(kvs.path, "temp/");
-
-        fs::remove_dir_all(path).unwrap();
+        assert_eq!(kvs.path, "1/");
     }
 
     #[test]
     fn test_new_existing_dir() {
-        let mut kvs = KVStore::new("temp").unwrap();
+        let path = "2";
+        rm_rf::ensure_removed(path).unwrap();
+
+        let mut kvs = KVStore::new(path).unwrap();
+        
         kvs.insert(String::from("key"), 1 as i32).unwrap();
 
-        let kvs2 = KVStore::new("temp").unwrap();
+        assert_eq!(kvs.size, 1);
+        assert_eq!(kvs.path, "2/");
+
+        let kvs2 = KVStore::new(path).unwrap();
 
         assert_eq!(kvs2.size, 1);
-        assert_eq!(kvs2.path, "temp/");
-
-        println!("{:?}", kvs.lookup::<String, i32>(String::from("key")).unwrap());
-        kvs.remove::<String, i32>(String::from("key")).unwrap();
-
-        fs::remove_dir_all("temp").unwrap();
+        assert_eq!(kvs2.path, "2/");
     }
 
     #[test]
     fn test_size_empty() {
+        let path = "3";
+        rm_rf::ensure_removed(path).unwrap();
 
+        let kvs = KVStore::new(path).unwrap();
+
+        assert_eq!(kvs.size(), 0);
     }
 
     #[test]
     fn test_size_nonempty() {
+        let path = "4";
+        rm_rf::ensure_removed(path).unwrap();
 
+        let mut kvs = KVStore::new(path).unwrap();
+        kvs.insert(String::from("key"), 1 as i32).unwrap();
+        
+        assert_eq!(kvs.size(), 1);
     }
+
+    #[test]
+    fn test_size_nonempty_lots() {
+        let path = "5";
+        rm_rf::ensure_removed(path).unwrap();
+
+        let mut kvs = KVStore::new(path).unwrap();
+
+        for i in 0..100 {
+            kvs.insert(String::from(i.to_string()), i as i32).unwrap();
+        }
+        
+        assert_eq!(kvs.size(), 100);
+    }
+
 
     #[test]
     fn test_insert() {
+        let path = "6";
+        rm_rf::ensure_removed(path).unwrap();
 
+        let mut kvs = KVStore::new(path).unwrap();
+
+        assert_eq!(kvs.size, 0);
+        assert_eq!(kvs.path, format!("{}{}", path, "/"));
+
+        kvs.insert(String::from("key"), 1 as i32).unwrap();
+
+        assert_eq!(kvs.size, 1);
+        assert_eq!(kvs.path, format!("{}{}", path, "/"));
+
+        kvs.remove::<String, i32>(String::from("key")).unwrap();
+        fs::remove_dir_all(path).unwrap();
     }
 
     #[test]
+    #[should_panic(expected = r#"There is a key-value mapping stored already with the same key."#)]
     fn test_insert_existing_key() {
+        let path = "7";
+        rm_rf::ensure_removed(path).unwrap();
 
+        let mut kvs = KVStore::new(path).unwrap();
+
+        assert_eq!(kvs.size, 0);
+        assert_eq!(kvs.path, format!("{}{}", path, "/"));
+
+        kvs.insert(String::from("key"), 1 as i32).unwrap();
+        kvs.insert(String::from("key"), 2 as i32).unwrap();
     }
 
     #[test]
     fn test_lookup_exists() {
+        let path = "8";
+        rm_rf::ensure_removed(path).unwrap();
 
+        let mut kvs = KVStore::new(path).unwrap();
+
+        assert_eq!(kvs.size, 0);
+        assert_eq!(kvs.path, format!("{}{}", path, "/"));
+
+        kvs.insert(String::from("key"), 1 as i32).unwrap();
+
+        assert_eq!(kvs.size, 1);
+        assert_eq!(kvs.path, format!("{}{}", path, "/"));
+        assert_eq!(kvs.lookup::<String, i32>(String::from("key")).unwrap(), 1);
     }
 
     #[test]
+    #[should_panic(expected = r#"No key-value mapping exists with this key."#)]
     fn test_lookup_does_not_exist() {
+        let path = "9";
+        rm_rf::ensure_removed(path).unwrap();
 
+        let kvs = KVStore::new(path).unwrap();
+
+        assert_eq!(kvs.size, 0);
+        assert_eq!(kvs.path, format!("{}{}", path, "/"));
+
+        kvs.lookup::<String, i32>(String::from("key")).unwrap();
     }
 
     #[test]
+    #[should_panic(expected = r#"No key-value mapping exists with this key."#)]
     fn test_lookup_removed() {
+        let path = "10";
+        rm_rf::ensure_removed(path).unwrap();
 
+        let mut kvs = KVStore::new(path).unwrap();
+
+        assert_eq!(kvs.size, 0);
+        assert_eq!(kvs.path, format!("{}{}", path, "/"));
+
+        kvs.insert(String::from("key"), 1 as i32).unwrap();
+
+        assert_eq!(kvs.size, 1);
+        assert_eq!(kvs.path, format!("{}{}", path, "/"));
+
+        kvs.remove::<String, i32>(String::from("key")).unwrap();
+
+        kvs.lookup::<String, i32>(String::from("key")).unwrap();
     }
 
     #[test]
-    fn test_lookup_after_insert() {
-
-    }
-
-    #[test]
-    fn test_lookup_preserve_type() {
-
-    }
-
-    #[test]
-    fn test_remove_exists() {
-
-    }
-
-    #[test]
+    #[should_panic(expected = r#"No key-value mapping exists with this key."#)]
     fn test_remove_does_not_exist() {
+        let path = "11";
+        rm_rf::ensure_removed(path).unwrap();
 
+        let mut kvs = KVStore::new(path).unwrap();
+
+        assert_eq!(kvs.size, 0);
+        assert_eq!(kvs.path, format!("{}{}", path, "/"));
+
+        kvs.remove::<String, i32>(String::from("key")).unwrap();
     }
 
     #[test]
     fn test_remove_delete_sub_dir() {
+        let path = "12";
+        rm_rf::ensure_removed(path).unwrap();
 
+        let mut kvs = KVStore::new(path).unwrap();
+
+        assert_eq!(kvs.size, 0);
+        assert_eq!(kvs.path, format!("{}{}", path, "/"));
+
+        kvs.insert(String::from("key"), 1 as i32).unwrap();
+
+        // inject a second key into the dir
+        let temp_file = "12/c0c1baf2fa/temp.key";
+        fs::write(&temp_file, serde_json::to_string("temp").unwrap()).expect("Unable to write file");
+
+        kvs.remove::<String, i32>(String::from("key")).unwrap();
+
+        assert_eq!(Path::new("12/c0c1baf2fa").read_dir().unwrap().next().is_none(), false);
     }
 }
