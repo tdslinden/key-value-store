@@ -339,3 +339,13 @@ impl Operations for KVStore {
         Err(custom_error)   
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hello_world_test() {
+        assert_eq!(4, 4);
+    }
+}
