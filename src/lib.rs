@@ -177,38 +177,16 @@ impl Operations for KVStore {
         let first_ten_key = &hashed_key[0..10];
         let desired_subdirectory_path = combine_string(&self.path, &first_ten_key);
 
-        let mut directory_exists = false;
-        for subdirectory_entry in fs::read_dir(&self.path)? {      
-            let subdirectory_entry = subdirectory_entry?;                 
-            let path_name = subdirectory_entry.path();
-            let subdirectory_path = path_name.to_str().unwrap();
-            let subdirectory_name = path_name.file_name().unwrap().to_str().unwrap();
-            
-            if subdirectory_name.len() == 10 {
-                let subdir_ten_key = &subdirectory_name[0..10];
-                let file_metadata = metadata(subdirectory_path).unwrap(); 
-                            
-                if first_ten_key.eq(subdir_ten_key) {
-                    if file_metadata.is_dir() {
-                        for entry in fs::read_dir(subdirectory_path)? {      
-                            let entry = entry?;                 
-                            let path_name = entry.path();            
-                            let file_name = path_name.file_name().unwrap().to_str().unwrap();
-                            
-                            if file_name.eq(&key_file_name) {
-                                let custom_error = Error::new(ErrorKind::AlreadyExists, "There is a key-value mapping stored already with the same key.");
-                                return Err(custom_error);
-                            } 
-                        }
-                    }
-                    directory_exists = true;
-                    break;
-                }
+        if Path::new(&desired_subdirectory_path).exists() {
+            let key_file_path = format!("{}{}{}", desired_subdirectory_path, "/", key_file_name);
+            if Path::new(&key_file_path).exists() {
+                return Err(Error::new(ErrorKind::AlreadyExists, "There is a key-value mapping stored already with the same key."));
             }
-        }
-        if !directory_exists {
+        } else {
             fs::create_dir(&desired_subdirectory_path)?;
         }
+
+        // Create the key and value files
         let key_file_path = create_file_path(&desired_subdirectory_path, &hashed_key, ".key");
         let value_file_path = create_file_path(&desired_subdirectory_path, &hashed_key, ".value");
         fs::write(&key_file_path, serialize_key).expect("Unable to write file");
@@ -289,7 +267,6 @@ impl Operations for KVStore {
             let subdir_ten_key = &subdirectory_name[0..10];                 //extract first 10 digits of hashed key to compare with subdir names
             let first_ten_key = &hashed_key[0..10];
             let file_metadata = metadata(subdirectory_path).unwrap();
-            let mut removed_key = false;
 
             if first_ten_key.eq(subdir_ten_key) {
                 if file_metadata.is_dir() {
@@ -297,15 +274,20 @@ impl Operations for KVStore {
                         let entry = entry?;                 
                         let path_name = entry.path();            
                         let file_name = path_name.file_name().unwrap().to_str().unwrap();
-
-                        if file_name.eq(&key_file_name) {              //remove key            
-                            let entire_file_path = format!("{}{}{}{}", subdirectory_path, "/", &hashed_key, ".key");    
-                            println!("removing key {}",entire_file_path);
-                            fs::remove_file(entire_file_path)?;
-                            removed_key = true;             
-                        }
             
                         if file_name.eq(&value_file_name){                //grabs deserialized value and removes .value                
+                
+                            for entry1 in fs::read_dir(subdirectory_path)? {    //implied that key must exist bc we found value, so find it
+                                let entry1 = entry1?;
+                                let path_name1 = entry1.path();            
+                                let file_name1 = path_name1.file_name().unwrap().to_str().unwrap();
+                                if file_name1.eq(&key_file_name) {              //remove key            
+                                    let entire_file_path = format!("{}{}{}{}", subdirectory_path, "/" ,&hashed_key, ".key");    
+                                    println!("removing key {}",entire_file_path);
+                                    fs::remove_file(entire_file_path)?;             
+                                }
+                            }
+
                             let entire_file_path = format!("{}{}{}{}", subdirectory_path, "/" ,&hashed_key, ".value");  //concantenate file's path
                             let entire_file_path_remove = String::from(&entire_file_path);
                             let contents = fs::read_to_string(entire_file_path)?;      //reads contents and returns Result<string>, so unwrap;
@@ -318,9 +300,7 @@ impl Operations for KVStore {
                                 println!("empty directory, deleting {}",subdirectory_path);
                                 fs::remove_dir_all(subdirectory_path)?;
                             }
-                            if removed_key {
-                                return Ok(deserialize_value);
-                            }
+                            return Ok(deserialize_value);
                         }
                     }
                     //key did not exist in subdirectory and it can't exist anywhere else
@@ -331,7 +311,7 @@ impl Operations for KVStore {
             }
         }
         let custom_error = Error::new(ErrorKind::NotFound, "Finished root level directory with no key matches, failed remove.");       //no subdirectories or something wrong with accessing directory
-        Err(custom_error)   
+        Err(custom_error)
     }
 }
 
