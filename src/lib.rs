@@ -189,6 +189,10 @@ impl Operations for KVStore {
             let subdirectory_path = path_name.to_str().unwrap();
             
             let subdirectory_name = path_name.file_name().unwrap().to_str().unwrap();
+            if subdirectory_name.len() < 10 {
+                println!("{} too small",subdirectory_name);
+                continue;
+            }
             let subdir_ten_key = &subdirectory_name[0..10];
             let file_metadata = metadata(subdirectory_path).unwrap(); 
                         
@@ -291,7 +295,7 @@ impl Operations for KVStore {
             let path_name = subdirectory.path();
             let subdirectory_path = path_name.to_str().unwrap();        //subdirectory path name should be first 10 sha digits
             let subdirectory_name = path_name.file_name().unwrap().to_str().unwrap(); //raw filename
-            if subdirectory_name.len() < 10 {
+            if subdirectory_name.len() < 10 {                           //technically we should not need this b/c all inserts will be 10 digit sha dirs
                 //println!("{} too small",subdirectory_name);
                 continue;
             }
@@ -305,24 +309,43 @@ impl Operations for KVStore {
                         let entry = entry?;                 
                         let path_name = entry.path();            
                         let file_name = path_name.file_name().unwrap().to_str().unwrap();
+            
+                        if file_name.eq(&value_file_name){                //grabs deserialized value and removes .value                
+                
+                            for entry1 in fs::read_dir(subdirectory_path)? {    //implied that key must exist bc we found value, so find it
+                                let entry1 = entry1?;
+                                let path_name1 = entry1.path();            
+                                let file_name1 = path_name1.file_name().unwrap().to_str().unwrap();
+                                if file_name1.eq(&key_file_name) {              //remove key            
+                                    let entire_file_path = format!("{}{}{}{}", subdirectory_path, "/" ,&hashed_key, ".key");    
+                                    println!("removing key {}",entire_file_path);
+                                    fs::remove_file(entire_file_path)?;             
+                                }
+                            }
 
-                        if file_name.eq(&value_file_name){                //have found desired key in lookup by finding its corresponding sha256string.value file
                             let entire_file_path = format!("{}{}{}{}", subdirectory_path, "/" ,&hashed_key, ".value");  //concantenate file's path
-                            
-                            let contents = fs::read_to_string(entire_file_path)?;      //returns Result<string>, so unwrap;
+                            let entire_file_path_remove = String::from(&entire_file_path);
+                            let contents = fs::read_to_string(entire_file_path)?;      //reads contents and returns Result<string>, so unwrap;
                             let deserialize_value = serde_json::from_str(&contents)?;   //deserialize
-                            //println!("{:?} is deserial",deserialize_value);
+                            println!("removing value {}",entire_file_path_remove);
+                            fs::remove_file(entire_file_path_remove)?;                  //remove value
+
+                            //have found key's corresponding value, now check dir if empty
+                            if Path::new(subdirectory_path).read_dir()?.next().is_none().eq(&true){    //empty directory
+                                println!("empty directory, deleting {}",subdirectory_path);
+                                fs::remove_dir_all(subdirectory_path)?;
+                            }
                             return Ok(deserialize_value);
                         }
                     }
                     //key did not exist in subdirectory and it can't exist anywhere else
-                    let custom_error = Error::new(ErrorKind::NotFound, "No key-value mapping exists with this key.");
+                    let custom_error = Error::new(ErrorKind::NotFound, "No key-value mapping exists with this key, failed remove.");
                     return Err(custom_error);
 
                 }
             }
         }
-        let custom_error = Error::new(ErrorKind::NotFound, "Finished root level directory with no key matches.");       //no subdirectories or something wrong with accessing directory
+        let custom_error = Error::new(ErrorKind::NotFound, "Finished root level directory with no key matches, failed remove.");       //no subdirectories or something wrong with accessing directory
         Err(custom_error)   
     }
 }
