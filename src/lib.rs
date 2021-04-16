@@ -185,26 +185,6 @@ impl Operations for KVStore {
             let path_name = subdirectory_entry.path();
             let subdirectory_path = path_name.to_str().unwrap();
             let subdirectory_name = path_name.file_name().unwrap().to_str().unwrap();
-<<<<<<< HEAD
-            if subdirectory_name.len() < 10 {
-                println!("{} too small",subdirectory_name);
-                continue;
-            }
-            let subdir_ten_key = &subdirectory_name[0..10];
-            let file_metadata = metadata(subdirectory_path).unwrap(); 
-                        
-            if first_ten_key.eq(subdir_ten_key) {
-                if file_metadata.is_dir() {
-                    for entry in fs::read_dir(subdirectory_path)? {      
-                        let entry = entry?;                 
-                        let path_name = entry.path();            
-                        let file_name = path_name.file_name().unwrap().to_str().unwrap();
-                        
-                        if file_name.eq(&key_file_name) {
-                            let custom_error = Error::new(ErrorKind::AlreadyExists, "There is a key-value mapping stored already with the same key.");
-                            return Err(custom_error);
-                        } 
-=======
             
             if subdirectory_name.len() == 10 {
                 let subdir_ten_key = &subdirectory_name[0..10];
@@ -222,7 +202,6 @@ impl Operations for KVStore {
                                 return Err(custom_error);
                             } 
                         }
->>>>>>> origin/master
                     }
                     directory_exists = true;
                     break;
@@ -299,8 +278,8 @@ impl Operations for KVStore {
     {
         let serialize_key = serde_json::to_string(&key).unwrap();
         let hashed_key = digest(&serialize_key);
-        let key_file_name = create_file_name(&hashed_key, ".key");
-        let value_file_name = create_file_name(&hashed_key, ".value");
+        let key_file_name = combine_string(&hashed_key, ".key");
+        let value_file_name = combine_string(&hashed_key, ".value");
         for subdirectory in fs::read_dir(&self.path)? {
             let subdirectory = subdirectory?;
             let path_name = subdirectory.path();
