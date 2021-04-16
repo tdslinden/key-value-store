@@ -227,7 +227,6 @@ impl Operations for KVStore {
         //if for loop ends in root level, that means lookup failed, return std error
         let serialize_key = serde_json::to_string(&key).unwrap();
         let hashed_key = digest(&serialize_key);
-        let key_file_name = combine_string(&hashed_key, ".key");
         let value_file_name = combine_string(&hashed_key, ".value");
         for subdirectory in fs::read_dir(&self.path)? {
             let subdirectory = subdirectory?;
@@ -354,19 +353,38 @@ mod tests {
     }
 
     #[test]
-    // #[should_panic(expected = "Permission denied")]
+    #[should_panic(expected = "Permission denied")]
     fn test_new_no_dir_error() {
-        // KVStore::new("/").unwrap();
+        KVStore::new("/").unwrap();
     }
 
     #[test]
-    fn test_new_no_existing() {
+    fn test_new_no_existing_dir_and_kvs() {
+        let path = "temp";
+        fs::create_dir_all(&path).unwrap();
 
+        let kvs = KVStore::new(path).unwrap();
+
+        assert_eq!(kvs.size, 0);
+        assert_eq!(kvs.path, "temp/");
+
+        fs::remove_dir_all(path).unwrap();
     }
 
     #[test]
-    fn test_new_existing() {
+    fn test_new_existing_dir() {
+        let mut kvs = KVStore::new("temp").unwrap();
+        kvs.insert(String::from("key"), 1 as i32).unwrap();
 
+        let kvs2 = KVStore::new("temp").unwrap();
+
+        assert_eq!(kvs2.size, 1);
+        assert_eq!(kvs2.path, "temp/");
+
+        println!("{:?}", kvs.lookup::<String, i32>(String::from("key")).unwrap());
+        kvs.remove::<String, i32>(String::from("key")).unwrap();
+
+        fs::remove_dir_all("temp").unwrap();
     }
 
     #[test]
