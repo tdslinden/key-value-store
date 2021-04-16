@@ -150,9 +150,7 @@ impl Operations for KVStore {
                             }
                         }
                     }
-                    println!("{}",filename);
                 }
-                println!("{} is the counter",counter);
                 let new_kvstore = KVStore {             //create instance of KVStore to account for existing and new key value pairs
                     size: counter,
                     path: sanitized_path,
@@ -347,5 +345,89 @@ mod tests {
     #[test]
     fn hello_world_test() {
         assert_eq!(4, 4);
+    }
+
+    #[test]
+    fn test_new_no_dir() {
+        let kvs = KVStore::new(".").unwrap();
+
+        assert_eq!(kvs.size, 0);
+        assert_eq!(kvs.path, "./");
+    }
+
+    #[test]
+    // #[should_panic(expected = "Permission denied")]
+    fn test_new_no_dir_error() {
+        // KVStore::new("/").unwrap();
+    }
+
+    #[test]
+    fn test_new_no_existing() {
+
+    }
+
+    #[test]
+    fn test_new_existing() {
+
+    }
+
+    #[test]
+    fn test_size_empty() {
+
+    }
+
+    #[test]
+    fn test_size_nonempty() {
+
+    }
+
+    #[test]
+    fn test_insert() {
+
+    }
+
+    #[test]
+    fn test_insert_existing_key() {
+
+    }
+
+    #[test]
+    fn test_lookup_exists() {
+
+    }
+
+    #[test]
+    fn test_lookup_does_not_exist() {
+
+    }
+
+    #[test]
+    fn test_lookup_removed() {
+
+    }
+
+    #[test]
+    fn test_lookup_after_insert() {
+
+    }
+
+    #[test]
+    fn test_lookup_preserve_type() {
+
+    }
+
+    #[test]
+    fn test_remove_exists() {
+
+    }
+
+    #[test]
+    fn test_remove_does_not_exist() {
+
+    }
+
+    #[test]
+    fn test_remove_delete_sub_dir() {
+
     }
 }
