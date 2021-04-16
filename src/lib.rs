@@ -241,11 +241,9 @@ impl Operations for KVStore {
                 
                 let contents = fs::read_to_string(&val_file_path)?;
                 let deserialize_value = serde_json::from_str(&contents)?;
-                println!("removing value {}",val_file_path);
                 fs::remove_file(val_file_path)?;
 
                 if Path::new(&sub_dir).read_dir()?.next().is_none() {
-                    println!("empty directory, deleting {}",sub_dir);
                     fs::remove_dir_all(sub_dir)?;
                 }
                 self.size -= 1;
