@@ -172,13 +172,14 @@ impl Operations for KVStore {
     {        
         let serialize_key = serde_json::to_string(&key).unwrap();
         let serialize_value = serde_json::to_string(&value).unwrap();
+
         let hashed_key = digest(&serialize_key);
-        let key_file_name = combine_string(&hashed_key, ".key");
         let first_ten_key = &hashed_key[0..10];
+
         let desired_subdirectory_path = combine_string(&self.path, &first_ten_key);
 
         if Path::new(&desired_subdirectory_path).exists() {
-            let key_file_path = format!("{}{}{}", desired_subdirectory_path, "/", key_file_name);
+            let key_file_path = format!("{}{}{}{}", desired_subdirectory_path, "/", &hashed_key, ".key");
             if Path::new(&key_file_path).exists() {
                 return Err(Error::new(ErrorKind::AlreadyExists, "There is a key-value mapping stored already with the same key."));
             }
@@ -200,50 +201,26 @@ impl Operations for KVStore {
         K: serde::Serialize + Default + Debug,
         V: serde::de::DeserializeOwned + Default + Debug
     {
-        //serde_json K, SHA256 K, access directory through self.path, search through directories.
-        //if found, take value, deserialize and return it in a result.
-        //if for loop ends in root level, that means lookup failed, return std error
         let serialize_key = serde_json::to_string(&key).unwrap();
         let hashed_key = digest(&serialize_key);
-        let value_file_name = combine_string(&hashed_key, ".value");
-        for subdirectory in fs::read_dir(&self.path)? {
-            let subdirectory = subdirectory?;
-            let path_name = subdirectory.path();
-            let subdirectory_path = path_name.to_str().unwrap();        //subdirectory path name should be first 10 sha digits
-            let subdirectory_name = path_name.file_name().unwrap().to_str().unwrap(); //raw filename
-            if subdirectory_name.len() < 10 {
-                //println!("{} too small",subdirectory_name);
-                continue;
+
+        let sub_dir = combine_string(&self.path, &hashed_key[0..10]);
+
+        if Path::new(&sub_dir).exists() {
+            let key_file_path = format!("{}{}{}{}", sub_dir, "/", &hashed_key, ".key");
+
+            if Path::new(&key_file_path).exists() {
+                let entire_file_path = format!("{}{}{}{}", sub_dir, "/" ,&hashed_key, ".value");
+                let contents = fs::read_to_string(entire_file_path)?;
+                let deserialize_value = serde_json::from_str(&contents)?;
+
+                return Ok(deserialize_value);
+            } else {
+                return Err(Error::new(ErrorKind::NotFound, "No key-value mapping exists with this key."));
             }
-            let subdir_ten_key = &subdirectory_name[0..10];                 //extract first 10 digits of hashed key to compare with subdir names
-            let first_ten_key = &hashed_key[0..10];
-            let file_metadata = metadata(subdirectory_path).unwrap();
-
-            if first_ten_key.eq(subdir_ten_key) {
-                if file_metadata.is_dir() {
-                    for entry in fs::read_dir(subdirectory_path)?{      //iterating through sub directory
-                        let entry = entry?;                 
-                        let path_name = entry.path();            
-                        let file_name = path_name.file_name().unwrap().to_str().unwrap();
-
-                        if file_name.eq(&value_file_name){                //have found desired key in lookup by finding its corresponding sha256string.value file
-                            let entire_file_path = format!("{}{}{}{}", subdirectory_path, "/" ,&hashed_key, ".value");  //concantenate file's path
-                            //println!("{}",entire_file_path);
-                            let contents = fs::read_to_string(entire_file_path)?;      //returns Result<string>, so unwrap;
-                            let deserialize_value = serde_json::from_str(&contents)?;   //deserialize
-                            //println!("{:?} is deserial",deserialize_value);
-                            return Ok(deserialize_value);
-                        }
-                    }
-                    //key did not exist in subdirectory and it can't exist anywhere else
-                    let custom_error = Error::new(ErrorKind::NotFound, "No key-value mapping exists with this key.");
-                    return Err(custom_error);
-
-                }
-            }
+        } else {
+            return Err(Error::new(ErrorKind::NotFound, "No key-value mapping exists with this key."));
         }
-        let custom_error = Error::new(ErrorKind::NotFound, "Finished root level directory with no key matches.");       //no subdirectories or something wrong with accessing directory
-        Err(custom_error)   
     }
 
     fn remove<K, V>(self: &mut Self, key: K) -> std::io::Result<V>
