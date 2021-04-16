@@ -278,8 +278,6 @@ impl Operations for KVStore {
     {
         let serialize_key = serde_json::to_string(&key).unwrap();
         let hashed_key = digest(&serialize_key);
-        let key_file_name = combine_string(&hashed_key, ".key");
-        let value_file_name = combine_string(&hashed_key, ".value");
         for subdirectory in fs::read_dir(&self.path)? {
             let subdirectory = subdirectory?;
             let path_name = subdirectory.path();
@@ -295,42 +293,26 @@ impl Operations for KVStore {
 
             if first_ten_key.eq(subdir_ten_key) {
                 if file_metadata.is_dir() {
-                    for entry in fs::read_dir(subdirectory_path)?{      //iterating through sub directory
-                        let entry = entry?;                 
-                        let path_name = entry.path();            
-                        let file_name = path_name.file_name().unwrap().to_str().unwrap();
-            
-                        if file_name.eq(&value_file_name){                //grabs deserialized value and removes .value                
-                
-                            for entry1 in fs::read_dir(subdirectory_path)? {    //implied that key must exist bc we found value, so find it
-                                let entry1 = entry1?;
-                                let path_name1 = entry1.path();            
-                                let file_name1 = path_name1.file_name().unwrap().to_str().unwrap();
-                                if file_name1.eq(&key_file_name) {              //remove key            
-                                    let entire_file_path = format!("{}{}{}{}", subdirectory_path, "/" ,&hashed_key, ".key");    
-                                    println!("removing key {}",entire_file_path);
-                                    fs::remove_file(entire_file_path)?;             
-                                }
-                            }
+                    let key_location = format!("{}{}{}{}", subdirectory_path, "/" ,&hashed_key, ".key");
+                    println!("removing key {}",key_location);
+                    fs::remove_file(key_location)?;    
 
-                            let entire_file_path = format!("{}{}{}{}", subdirectory_path, "/" ,&hashed_key, ".value");  //concantenate file's path
-                            let entire_file_path_remove = String::from(&entire_file_path);
-                            let contents = fs::read_to_string(entire_file_path)?;      //reads contents and returns Result<string>, so unwrap;
-                            let deserialize_value = serde_json::from_str(&contents)?;   //deserialize
-                            println!("removing value {}",entire_file_path_remove);
-                            fs::remove_file(entire_file_path_remove)?;                  //remove value
-
-                            //have found key's corresponding value, now check dir if empty
-                            if Path::new(subdirectory_path).read_dir()?.next().is_none().eq(&true){    //empty directory
-                                println!("empty directory, deleting {}",subdirectory_path);
-                                fs::remove_dir_all(subdirectory_path)?;
-                            }
-                            return Ok(deserialize_value);
-                        }
+                    let value_location = format!("{}{}{}{}", subdirectory_path, "/" ,&hashed_key, ".value");
+                    let entire_file_path_remove = String::from(&value_location);
+                    let contents = fs::read_to_string(value_location)?;      //reads contents and returns Result<string>, so unwrap;
+                    let deserialize_value = serde_json::from_str(&contents)?;   //deserialize
+                    println!("removing value {}",entire_file_path_remove);
+                    fs::remove_file(entire_file_path_remove)?;                  //remove value
+                    
+                    if Path::new(subdirectory_path).read_dir()?.next().is_none().eq(&true){    //empty directory
+                        println!("empty directory, deleting {}",subdirectory_path);
+                        fs::remove_dir_all(subdirectory_path)?;
                     }
+                    return Ok(deserialize_value);
+                    
                     //key did not exist in subdirectory and it can't exist anywhere else
-                    let custom_error = Error::new(ErrorKind::NotFound, "No key-value mapping exists with this key, failed remove.");
-                    return Err(custom_error);
+                    // let custom_error = Error::new(ErrorKind::NotFound, "No key-value mapping exists with this key, failed remove.");
+                    // return Err(custom_error);
 
                 }
             }
