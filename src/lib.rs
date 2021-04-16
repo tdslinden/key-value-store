@@ -96,12 +96,7 @@ pub trait Operations {
 }
 
 fn create_file_path<'a>(path: &String, hashed_value: &'a str, extension: &'a str) -> String {
-    let file_path = match path.as_str() {
-        "." => format!("{}{}{}", "/", &hashed_value, extension),
-        _ => format!("{}{}{}{}", path, "/", &hashed_value, extension),
-    };
-
-    file_path
+    format!("{}{}{}{}", path, "/", &hashed_value, extension)
 }
 
 fn combine_string<'a>(first: &'a str, second: &'a str) -> String {
@@ -110,21 +105,22 @@ fn combine_string<'a>(first: &'a str, second: &'a str) -> String {
 
 impl Operations for KVStore {
     fn new(path: &str) -> std::io::Result<Self> {
-        //let check_dir = Path::new(path).read_dir()?;    //checks dir existence.
-        fs::create_dir_all(&path)?;                 //creates dir at path. if error, returns std error.
-        //TODO: should we exclude target from possible directories creation?
-        let is_empty = Path::new(path).read_dir()?.next().is_none();
-        //println!("{}",is_empty);
+        fs::create_dir_all(&path)?;
         
-        let mut sanitized_path = String::from(path);    //will we need to add a / to the end of the path? 
+        let mut sanitized_path = String::from(path);
         let length = sanitized_path.len();
-        let last_char = &sanitized_path[length-1..];    //https://stackoverflow.com/questions/48642342/how-to-get-the-last-character-of-a-str
-        //println!("{}",last_char);
-        if !last_char.contains(&String::from("/")){     //if it does not contain a /, it will need to be added to the sanitized path
+        let last_char = &sanitized_path[length-1..];  // https://stackoverflow.com/questions/48642342/how-to-get-the-last-character-of-a-str
+
+        // Ensure path ends in "/"
+        if !last_char.contains(&String::from("/")){
             sanitized_path = sanitized_path + "/";
         }
+
+        let is_empty = Path::new(path).read_dir()?.next().is_none();
+
         match is_empty {
-            true => {                                   //no existing key-value mappings
+            // No existing key-value mappings
+            true => { 
                 let new_kvstore = KVStore {
                     size: 0,
                     path: sanitized_path,
@@ -133,17 +129,18 @@ impl Operations for KVStore {
             },
             false => {  
                 let mut counter = 0;
-                for entry in fs::read_dir(path)? {      //grabs all entries in the directory and searches for ".key"
-                    let entry = entry?;                 //counting all the KV pairs in the directory
-                    //let filename = entry.file_name().into_string();   //to initialize a KVStore instance with an existing number of pairs
-                    let pathname = entry.path();            //https://doc.rust-lang.org/std/fs/struct.DirEntry.html#method.path
-                    let filename = pathname.to_str().unwrap();
-                    let file_metadata = metadata(filename).unwrap();    //https://stackoverflow.com/questions/30309100/how-to-check-if-a-given-path-is-a-file-or-directory
-                    if file_metadata.is_dir() {     //beginning of sub directory check for keyvalue pairs
+                for dir in fs::read_dir(path)? {
+                    let dir = dir?;
 
-                        for entry in fs::read_dir(filename)? {      
-                            let entry = entry?;                 
-                            let pathname = entry.path();            
+                    let pathname = dir.path();
+                    let dir_name = pathname.to_str().unwrap();
+
+                    // Check if it is a directory
+                    // https://stackoverflow.com/questions/30309100/how-to-check-if-a-given-path-is-a-file-or-directory
+                    if metadata(dir_name).unwrap().is_dir() {
+                        for file in fs::read_dir(dir_name)? {      
+                            let file = file?;                 
+                            let pathname = file.path();            
                             let filename2 = pathname.to_str().unwrap();
                             if filename2.contains(&String::from(".key")) {
                                 counter = counter + 1;       
@@ -151,7 +148,8 @@ impl Operations for KVStore {
                         }
                     }
                 }
-                let new_kvstore = KVStore {             //create instance of KVStore to account for existing and new key value pairs
+                
+                let new_kvstore = KVStore {  
                     size: counter,
                     path: sanitized_path,
                 };
@@ -230,65 +228,34 @@ impl Operations for KVStore {
     {
         let serialize_key = serde_json::to_string(&key).unwrap();
         let hashed_key = digest(&serialize_key);
-        let key_file_name = combine_string(&hashed_key, ".key");
-        let value_file_name = combine_string(&hashed_key, ".value");
-        for subdirectory in fs::read_dir(&self.path)? {
-            let subdirectory = subdirectory?;
-            let path_name = subdirectory.path();
-            let subdirectory_path = path_name.to_str().unwrap();        //subdirectory path name should be first 10 sha digits
-            let subdirectory_name = path_name.file_name().unwrap().to_str().unwrap(); //raw filename
-            if subdirectory_name.len() < 10 {                           //technically we should not need this b/c all inserts will be 10 digit sha dirs
-                //println!("{} too small",subdirectory_name);
-                continue;
-            }
-            let subdir_ten_key = &subdirectory_name[0..10];                 //extract first 10 digits of hashed key to compare with subdir names
-            let first_ten_key = &hashed_key[0..10];
-            let file_metadata = metadata(subdirectory_path).unwrap();
 
-            if first_ten_key.eq(subdir_ten_key) {
-                if file_metadata.is_dir() {
-                    for entry in fs::read_dir(subdirectory_path)?{      //iterating through sub directory
-                        let entry = entry?;                 
-                        let path_name = entry.path();            
-                        let file_name = path_name.file_name().unwrap().to_str().unwrap();
-            
-                        if file_name.eq(&value_file_name){                //grabs deserialized value and removes .value                
+        let sub_dir = combine_string(&self.path, &hashed_key[0..10]);
+
+        if Path::new(&sub_dir).exists() {
+            let key_file_path = format!("{}{}{}{}", sub_dir, "/", &hashed_key, ".key");
+
+            if Path::new(&key_file_path).exists() {
+                fs::remove_file(key_file_path)?;
+
+                let val_file_path = format!("{}{}{}{}", sub_dir, "/" ,&hashed_key, ".value");
                 
-                            for entry1 in fs::read_dir(subdirectory_path)? {    //implied that key must exist bc we found value, so find it
-                                let entry1 = entry1?;
-                                let path_name1 = entry1.path();            
-                                let file_name1 = path_name1.file_name().unwrap().to_str().unwrap();
-                                if file_name1.eq(&key_file_name) {              //remove key            
-                                    let entire_file_path = format!("{}{}{}{}", subdirectory_path, "/" ,&hashed_key, ".key");    
-                                    println!("removing key {}",entire_file_path);
-                                    fs::remove_file(entire_file_path)?;             
-                                }
-                            }
+                let contents = fs::read_to_string(&val_file_path)?;
+                let deserialize_value = serde_json::from_str(&contents)?;
+                println!("removing value {}",val_file_path);
+                fs::remove_file(val_file_path)?;
 
-                            let entire_file_path = format!("{}{}{}{}", subdirectory_path, "/" ,&hashed_key, ".value");  //concantenate file's path
-                            let entire_file_path_remove = String::from(&entire_file_path);
-                            let contents = fs::read_to_string(entire_file_path)?;      //reads contents and returns Result<string>, so unwrap;
-                            let deserialize_value = serde_json::from_str(&contents)?;   //deserialize
-                            println!("removing value {}",entire_file_path_remove);
-                            fs::remove_file(entire_file_path_remove)?;                  //remove value
-
-                            //have found key's corresponding value, now check dir if empty
-                            if Path::new(subdirectory_path).read_dir()?.next().is_none().eq(&true){    //empty directory
-                                println!("empty directory, deleting {}",subdirectory_path);
-                                fs::remove_dir_all(subdirectory_path)?;
-                            }
-                            return Ok(deserialize_value);
-                        }
-                    }
-                    //key did not exist in subdirectory and it can't exist anywhere else
-                    let custom_error = Error::new(ErrorKind::NotFound, "No key-value mapping exists with this key, failed remove.");
-                    return Err(custom_error);
-
+                if Path::new(&sub_dir).read_dir()?.next().is_none() {
+                    println!("empty directory, deleting {}",sub_dir);
+                    fs::remove_dir_all(sub_dir)?;
                 }
+
+                return Ok(deserialize_value);
+            } else {
+                return Err(Error::new(ErrorKind::NotFound, "No key-value mapping exists with this key."));
             }
+        } else {
+            return Err(Error::new(ErrorKind::NotFound, "No key-value mapping exists with this key."));
         }
-        let custom_error = Error::new(ErrorKind::NotFound, "Finished root level directory with no key matches, failed remove.");       //no subdirectories or something wrong with accessing directory
-        Err(custom_error)
     }
 }
 
