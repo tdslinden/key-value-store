@@ -275,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Permission denied")]
+    #[should_panic]
     fn test_new_no_dir_error() {
         KVStore::new("/").unwrap();
     }
