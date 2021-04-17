@@ -105,6 +105,8 @@ fn combine_string<'a>(first: &'a str, second: &'a str) -> String {
 
 impl Operations for KVStore {
     fn new(path: &str) -> std::io::Result<Self> {
+        let path = if path.eq("") { "." } else { path };
+        
         fs::create_dir_all(&path)?;
         
         let mut sanitized_path = String::from(path);
