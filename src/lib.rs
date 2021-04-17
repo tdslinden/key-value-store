@@ -105,6 +105,8 @@ fn combine_string<'a>(first: &'a str, second: &'a str) -> String {
 
 impl Operations for KVStore {
     fn new(path: &str) -> std::io::Result<Self> {
+        let path = if path.eq("") { "." } else { path };
+        
         fs::create_dir_all(&path)?;
         
         let mut sanitized_path = String::from(path);
@@ -241,11 +243,9 @@ impl Operations for KVStore {
                 
                 let contents = fs::read_to_string(&val_file_path)?;
                 let deserialize_value = serde_json::from_str(&contents)?;
-                println!("removing value {}",val_file_path);
                 fs::remove_file(val_file_path)?;
 
                 if Path::new(&sub_dir).read_dir()?.next().is_none() {
-                    println!("empty directory, deleting {}",sub_dir);
                     fs::remove_dir_all(sub_dir)?;
                 }
                 self.size -= 1;
@@ -382,8 +382,30 @@ mod tests {
     }
 
     #[test]
-    fn test_lookup_exists() {
+    fn test_insert_custom_type() {
+        #[derive(Serialize, Deserialize, Debug, Default)]
+        struct Point {
+            x: f32,
+            y: f32,
+        }
+
+        let point: Point = Point { x: 10.3, y: 0.4 };
         let path = "8";
+
+        rm_rf::ensure_removed(path).unwrap();
+        let mut kvs = KVStore::new(path).unwrap();
+
+        assert_eq!(kvs.size, 0);
+        assert_eq!(kvs.path, format!("{}{}", path, "/"));
+
+        kvs.insert(String::from("key"), point).unwrap();
+
+        assert_eq!(kvs.size, 1);
+    }
+
+    #[test]
+    fn test_lookup_exists() {
+        let path = "9";
         rm_rf::ensure_removed(path).unwrap();
 
         let mut kvs = KVStore::new(path).unwrap();
@@ -401,7 +423,7 @@ mod tests {
     #[test]
     #[should_panic(expected = r#"No key-value mapping exists with this key."#)]
     fn test_lookup_does_not_exist() {
-        let path = "9";
+        let path = "10";
         rm_rf::ensure_removed(path).unwrap();
 
         let kvs = KVStore::new(path).unwrap();
@@ -415,7 +437,7 @@ mod tests {
     #[test]
     #[should_panic(expected = r#"No key-value mapping exists with this key."#)]
     fn test_lookup_removed() {
-        let path = "10";
+        let path = "11";
         rm_rf::ensure_removed(path).unwrap();
 
         let mut kvs = KVStore::new(path).unwrap();
@@ -430,13 +452,40 @@ mod tests {
 
         kvs.remove::<String, i32>(String::from("key")).unwrap();
 
+        assert_eq!(kvs.size, 0);
+
         kvs.lookup::<String, i32>(String::from("key")).unwrap();
+    }
+
+    #[test]
+    fn test_remove_custom_type() {
+        #[derive(Serialize, Deserialize, Debug, Default)]
+        struct Point {
+            x: f32,
+            y: f32,
+        }
+
+        let point: Point = Point { x: 10.3, y: 0.4 };
+        let path = "12";
+        rm_rf::ensure_removed(path).unwrap();
+        let mut kvs = KVStore::new(path).unwrap();
+
+        assert_eq!(kvs.size, 0);
+        assert_eq!(kvs.path, format!("{}{}", path, "/"));
+
+        kvs.insert(String::from("key"), point).unwrap();
+
+        assert_eq!(kvs.size, 1);
+
+        kvs.remove::<String, Point>(String::from("key")).unwrap();
+
+        assert_eq!(kvs.size, 0);
     }
 
     #[test]
     #[should_panic(expected = r#"No key-value mapping exists with this key."#)]
     fn test_remove_does_not_exist() {
-        let path = "11";
+        let path = "13";
         rm_rf::ensure_removed(path).unwrap();
 
         let mut kvs = KVStore::new(path).unwrap();
@@ -449,7 +498,7 @@ mod tests {
 
     #[test]
     fn test_remove_delete_sub_dir() {
-        let path = "12";
+        let path = "14";
         rm_rf::ensure_removed(path).unwrap();
 
         let mut kvs = KVStore::new(path).unwrap();
@@ -460,11 +509,11 @@ mod tests {
         kvs.insert(String::from("key"), 1 as i32).unwrap();
 
         // inject a second key into the dir
-        let temp_file = "12/c0c1baf2fa/temp.key";
+        let temp_file = "14/c0c1baf2fa/temp.key";
         fs::write(&temp_file, serde_json::to_string("temp").unwrap()).expect("Unable to write file");
 
         kvs.remove::<String, i32>(String::from("key")).unwrap();
 
-        assert_eq!(Path::new("12/c0c1baf2fa").read_dir().unwrap().next().is_none(), false);
+        assert_eq!(Path::new("14/c0c1baf2fa").read_dir().unwrap().next().is_none(), false);
     }
 }
